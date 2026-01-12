@@ -6,33 +6,34 @@ def home(request):
     """Renders the main terminal interface."""
     return render(request, 'index.html')
 
+# In api/views.py
+
 def get_token_info(request):
-    """
-    Fetches token info from Jupiter (Solana) or GeckoTerminal (Multi-chain).
-    This acts as a proxy so your frontend doesn't get blocked.
-    """
     address = request.GET.get('address')
     if not address:
         return JsonResponse({'error': 'No address provided'}, status=400)
 
-    # Example: Check Jupiter API for Solana tokens
-    # You can expand this to check Ethereum APIs if needed
-    url = f"https://api.jup.ag/price/v2?ids={address}"
+    # NEW: Switch to DexScreener API (Finds EVERYTHING: Solana, Base, ETH, Pump.fun)
+    url = f"https://api.dexscreener.com/latest/dex/tokens/{address}"
     
     try:
         response = requests.get(url, timeout=5)
         data = response.json()
         
-        # Parse Jupiter response
-        if 'data' in data and address in data['data']:
-            token_data = data['data'][address]
+        # DexScreener returns a list of 'pairs'. We want the most liquid one.
+        if 'pairs' in data and data['pairs']:
+            best_pair = data['pairs'][0] # The first one is usually the main one
+            
             return JsonResponse({
                 'found': True,
-                'price': token_data.get('price'),
-                'type': 'Solana (Jupiter)'
+                'symbol': best_pair.get('baseToken', {}).get('symbol', 'UNKNOWN'),
+                'price': best_pair.get('priceUsd', '0'),
+                'liquidity': best_pair.get('liquidity', {}).get('usd', 0),
+                'chain': best_pair.get('chainId', 'unknown').title()
             })
         else:
-            return JsonResponse({'found': False, 'message': 'Token not found on Solana'})
+            # If DexScreener can't find it, it truly doesn't exist
+            return JsonResponse({'found': False, 'message': 'Token not found (New or invalid)'})
             
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'found': False, 'error': str(e)}, status=500)
