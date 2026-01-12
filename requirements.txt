@@ -1,0 +1,5 @@
+Django==5.0.1
+requests
+psycopg2-binary   # For Postgres connection later
+dj-database-url
+whitenoise        # For serving static files
